@@ -52,9 +52,13 @@ class HealthHandler(BaseHTTPRequestHandler):
     state = None
 
     def do_GET(self):
-        if self.path not in ("/", "/health", "/status", "/ready"):
-            self.send_error(HTTPStatus.NOT_FOUND)
-            return
+    # 允许魔搭附加的路径和查询参数
+    # 非 API 路径统一显示健康检查页面
+    path = self.path.split("?", 1)[0].rstrip("/") or "/"
+    if path not in ("/health", "/status", "/ready"):
+        self.path = "/"
+    else:
+        self.path = path
 
         status = self.state.snapshot()
         ready = (
