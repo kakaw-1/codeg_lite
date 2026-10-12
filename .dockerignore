@@ -1,0 +1,13 @@
+.git
+.github
+.gitignore
+.env
+.env.*
+*.zip
+__pycache__/
+*.pyc
+tests/
+modelscope/
+scripts/
+compose.yaml
+README.md

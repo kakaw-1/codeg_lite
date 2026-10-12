@@ -1,0 +1,120 @@
+name: Build and publish Codeg Lite
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Validate package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Python unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Compile scripts
+        run: python -m py_compile supervisor.py scripts/create_modelscope_bundle.py
+
+  publish:
+    name: Build image and generate ModelScope package
+    # Only push from this repository's main branch; PRs never get push credentials.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve lowercase GHCR image name
+        id: image
+        shell: bash
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        env:
+          DOCKER_METADATA_SHORT_SHA_LENGTH: '12'
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short,prefix=sha-
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.description=Codeg Lite for ModelScope and Cloudflare Tunnel
+
+      - name: Build and push linux/amd64 image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create ModelScope Studio deploy artifact
+        shell: bash
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+        run: |
+          python scripts/create_modelscope_bundle.py \
+            --image "${IMAGE_NAME}:sha-${GITHUB_SHA:0:12}" \
+            --output dist/modelscope
+          cat dist/modelscope/Dockerfile
+
+      - name: Upload deploy artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: modelscope-studio-${{ github.sha }}
+          path: dist/modelscope/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Image links and next steps
+        shell: bash
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+        run: |
+          {
+            echo '## Codeg Lite image published'
+            echo ''
+            echo "- Image: \`${IMAGE_NAME}:latest\`"
+            echo "- Commit-derived tag (rebuilds can overwrite the tag): \`${IMAGE_NAME}:sha-${GITHUB_SHA:0:12}\`"
+            echo '- Download the `modelscope-studio-*` artifact from this workflow run.'
+            echo '- Make the GHCR package **Public** before deploying in ModelScope.'
+            echo '- Set `CODEG_TOKEN` and `TUNNEL_TOKEN` as ModelScope runtime Secrets.'
+          } >> "$GITHUB_STEP_SUMMARY"

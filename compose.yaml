@@ -1,0 +1,15 @@
+services:
+  codeg-lite:
+    build: .
+    image: codeg-lite:local
+    ports:
+      - '127.0.0.1:7860:7860'
+    environment:
+      CODEG_TOKEN: ${CODEG_TOKEN:?Please set CODEG_TOKEN in your .env file}
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?Please set TUNNEL_TOKEN in your .env file}
+    volumes:
+      - codeg-workspace:/mnt/workspace
+    restart: unless-stopped
+
+volumes:
+  codeg-workspace:
