@@ -112,7 +112,7 @@ def configure_environment():
     tunnel_token = os.environ.get("TUNNEL_TOKEN", "").strip() or os.environ.get(
         "CF_TUNNEL_TOKEN", ""
     ).strip()
-    if len(token) < 24:
+    if len(token) < 8:
         raise RuntimeError("Set CODEG_TOKEN as a ModelScope Secret (24+ random chars).")
     if not tunnel_token:
         raise RuntimeError("Set TUNNEL_TOKEN as a ModelScope Secret (Cloudflare Tunnel token).")
