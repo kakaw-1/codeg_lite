@@ -69,7 +69,6 @@ jobs:
           images: ${{ steps.image.outputs.name }}
           tags: |
             type=raw,value=latest
-            type=sha,format=short,prefix=sha-
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.description=Codeg Lite for ModelScope and Cloudflare Tunnel
@@ -92,7 +91,7 @@ jobs:
           IMAGE_NAME: ${{ steps.image.outputs.name }}
         run: |
           python scripts/create_modelscope_bundle.py \
-            --image "${IMAGE_NAME}:sha-${GITHUB_SHA:0:12}" \
+            --image "${IMAGE_NAME}:latest" \
             --output dist/modelscope
           cat dist/modelscope/Dockerfile
 
@@ -113,7 +112,6 @@ jobs:
             echo '## Codeg Lite image published'
             echo ''
             echo "- Image: \`${IMAGE_NAME}:latest\`"
-            echo "- Commit-derived tag (rebuilds can overwrite the tag): \`${IMAGE_NAME}:sha-${GITHUB_SHA:0:12}\`"
             echo '- Download the `modelscope-studio-*` artifact from this workflow run.'
             echo '- Make the GHCR package **Public** before deploying in ModelScope.'
             echo '- Set `CODEG_TOKEN` and `TUNNEL_TOKEN` as ModelScope runtime Secrets.'
